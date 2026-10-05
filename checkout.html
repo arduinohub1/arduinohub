@@ -1,0 +1,468 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Checkout - Arduino Hub</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <!-- Firebase & EmailJS -->
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js"></script>
+    <script src="firebase-config.js"></script>
+    <script type="text/javascript" src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"></script>
+
+    <style>
+        :root {
+            --bg-dark: #070a12;
+            --glass-bg: rgba(18, 25, 41, 0.62);
+            --glass-border: rgba(255, 255, 255, 0.12);
+            --glass-border-strong: rgba(255, 255, 255, 0.22);
+            --glass-glow: rgba(56, 189, 248, 0.28);
+            --accent-blue: #2563eb;
+            --accent-cyan: #38bdf8;
+            --text-main: #f8fafc;
+            --text-muted: #94a3b8;
+            --input-bg: rgba(6, 9, 17, 0.72);
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
+        body {
+            display: flex; min-height: 100vh; color: var(--text-main);
+            background-color: var(--bg-dark);
+            background-image:
+                radial-gradient(circle at 15% 15%, rgba(37, 99, 235, 0.2) 0%, transparent 45%),
+                radial-gradient(circle at 85% 85%, rgba(56, 189, 248, 0.15) 0%, transparent 45%);
+            background-attachment: fixed;
+        }
+        
+        /* Split Layout (kept from original structure) */
+        .left-col { flex: 1.1; padding: 4% 5% 5% 10%; display: flex; justify-content: flex-end; }
+        .right-col {
+            flex: 0.9; padding: 4% 10% 5% 4%;
+            background: rgba(10, 15, 28, 0.55);
+            -webkit-backdrop-filter: blur(24px); backdrop-filter: blur(24px);
+            border-left: 1px solid var(--glass-border);
+            box-shadow: inset 1px 0 0 rgba(255, 255, 255, 0.04);
+        }
+        .left-content { width: 100%; max-width: 600px; }
+        .right-content { width: 100%; max-width: 450px; position: sticky; top: 4%; }
+
+        @media (max-width: 999px) {
+            body { flex-direction: column-reverse; }
+            .left-col, .right-col { flex: none; width: 100%; padding: 6% 5%; justify-content: center; }
+            .right-col { border-left: none; border-bottom: 1px solid var(--glass-border); }
+            .left-content, .right-content { max-width: 100%; position: static; }
+        }
+
+        /* Typography & Brand */
+        .brand { font-size: 1.7rem; color: var(--text-main); text-decoration: none; display: flex; align-items: center; gap: 10px; margin-bottom: 18px; font-weight: 900; letter-spacing: -0.5px; }
+        .brand i { color: var(--accent-cyan); filter: drop-shadow(0 0 10px var(--accent-cyan)); }
+        h2 { font-size: 1.05rem; font-weight: 700; margin-bottom: 14px; margin-top: 30px; letter-spacing: -0.2px; display: flex; align-items: center; gap: 10px; }
+        h2::after { content: ""; flex: 1; height: 1px; background: linear-gradient(90deg, var(--glass-border), transparent); }
+
+        /* Breadcrumbs */
+        .breadcrumbs { font-size: 0.85rem; color: var(--text-muted); margin-bottom: 26px; }
+        .breadcrumbs span { margin: 0 5px; }
+        .breadcrumbs a { color: var(--accent-cyan) !important; transition: opacity 0.2s ease; }
+        .breadcrumbs a:hover { opacity: 0.8; }
+        .breadcrumbs .active { color: var(--text-main); font-weight: 600; }
+
+        /* Inputs */
+        .input-group { margin-bottom: 14px; position: relative; }
+        .input-row { display: flex; gap: 14px; }
+        .input-row .input-group { flex: 1; min-width: 0; }
+        .form-control {
+            width: 100%; padding: 14px 16px; color: var(--text-main);
+            border: 1px solid var(--glass-border); border-radius: 14px;
+            font-size: 0.93rem; background-color: var(--input-bg);
+            box-shadow: inset 0 2px 6px rgba(0, 0, 0, 0.3);
+            transition: all 0.25s ease; outline: none;
+        }
+        .form-control:hover { border-color: var(--glass-border-strong); }
+        .form-control:focus { border-color: var(--accent-cyan); background-color: rgba(6, 9, 17, 0.92); box-shadow: 0 0 0 4px rgba(56, 189, 248, 0.12), 0 0 18px var(--glass-glow); }
+        .form-control::placeholder { color: rgba(148, 163, 184, 0.6); }
+        select.form-control { appearance: none; -webkit-appearance: none; cursor: pointer;
+            background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'><path fill='none' stroke='%2394a3b8' stroke-width='2' d='M1 1l5 5 5-5'/></svg>");
+            background-repeat: no-repeat; background-position: right 16px center; padding-right: 40px; }
+        select.form-control option { background: #0f172a; color: var(--text-main); }
+        .form-control:-webkit-autofill, .form-control:-webkit-autofill:focus {
+            -webkit-text-fill-color: #ffffff; -webkit-box-shadow: 0 0 0 1000px #0b1120 inset; caret-color: #ffffff;
+        }
+
+        /* Buttons */
+        .btn-primary {
+            position: relative; overflow: hidden;
+            background: linear-gradient(135deg, var(--accent-blue) 0%, #1d4ed8 55%, #0ea5e9 130%);
+            color: white; border: 1px solid rgba(255, 255, 255, 0.16); border-radius: 14px;
+            padding: 16px 28px; font-size: 1rem; font-weight: 700; cursor: pointer;
+            transition: all 0.25s ease; width: 100%; display: flex; justify-content: center; align-items: center;
+            box-shadow: 0 8px 22px rgba(37, 99, 235, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.25);
+        }
+        .btn-primary::after {
+            content: ""; position: absolute; top: 0; left: -80%; width: 50%; height: 100%;
+            background: linear-gradient(120deg, transparent, rgba(255, 255, 255, 0.28), transparent);
+            transform: skewX(-20deg); transition: left 0.6s ease;
+        }
+        .btn-primary:hover:not(:disabled)::after { left: 130%; }
+        .btn-primary:hover:not(:disabled) { transform: translateY(-2px); box-shadow: 0 12px 28px rgba(37, 99, 235, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.3); }
+        .btn-primary:active:not(:disabled) { transform: translateY(0); }
+        .btn-primary:disabled { opacity: 0.55; cursor: not-allowed; }
+        .btn-primary:focus-visible { outline: 2px solid var(--accent-cyan); outline-offset: 3px; }
+        .footer-actions { display: flex; justify-content: space-between; align-items: center; gap: 16px; margin-top: 28px; }
+        .return-link { color: var(--accent-cyan); text-decoration: none; font-size: 0.9rem; font-weight: 500; transition: all 0.2s ease; white-space: nowrap; }
+        .return-link:hover { text-decoration: underline; text-underline-offset: 3px; transform: translateX(-2px); }
+        @media (max-width: 520px) {
+            .footer-actions { flex-direction: column-reverse; align-items: stretch; }
+            .footer-actions .btn-primary { width: 100% !important; }
+            .return-link { text-align: center; }
+            .input-row { flex-direction: column; gap: 0; }
+        }
+
+        /* Order Summary Panel */
+        .cart-item { display: flex; align-items: center; padding: 10px; margin-bottom: 10px; border-radius: 16px; border: 1px solid transparent; transition: all 0.2s ease; }
+        .cart-item:hover { background: rgba(255, 255, 255, 0.04); border-color: var(--glass-border); }
+        .item-img-wrapper {
+            position: relative; width: 64px; height: 64px; flex-shrink: 0; background: #fff;
+            border: 1px solid var(--glass-border); border-radius: 14px; display: flex; align-items: center; justify-content: center;
+            box-shadow: 0 6px 16px rgba(0, 0, 0, 0.35);
+        }
+        .item-img-wrapper img { max-width: 80%; max-height: 80%; object-fit: contain; }
+        .item-qty {
+            position: absolute; top: -8px; right: -8px; background: linear-gradient(135deg, var(--accent-blue), var(--accent-cyan)); color: white;
+            font-size: 0.75rem; width: 22px; height: 22px; border-radius: 50%; display: flex;
+            align-items: center; justify-content: center; font-weight: 700; box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
+        }
+        .item-info { flex: 1; padding: 0 15px; font-size: 0.9rem; color: var(--text-main); font-weight: 600; line-height: 1.35; min-width: 0; }
+        .item-price { font-size: 0.9rem; color: var(--accent-cyan); font-weight: 700; white-space: nowrap; }
+
+        .summary-line { display: flex; justify-content: space-between; font-size: 0.9rem; color: var(--text-muted); margin-bottom: 10px; }
+        .summary-total { display: flex; justify-content: space-between; align-items: center; font-size: 1.6rem; font-weight: 800; color: var(--text-main); margin-top: 20px; padding-top: 20px; border-top: 1px solid var(--glass-border); }
+        .summary-total span:first-child { font-size: 1rem; font-weight: 600; color: var(--text-main); }
+        .currency { font-size: 0.85rem; color: var(--text-muted); margin-right: 5px; font-weight: 600; }
+
+        .payment-box {
+            border: 1px solid var(--glass-border); padding: 20px; border-radius: 16px;
+            background: linear-gradient(160deg, rgba(255, 255, 255, 0.07), rgba(255, 255, 255, 0.015)), var(--glass-bg);
+            -webkit-backdrop-filter: blur(20px); backdrop-filter: blur(20px);
+            box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.1), 0 10px 30px rgba(0, 0, 0, 0.3);
+            margin-bottom: 20px; font-size: 0.9rem; color: var(--text-muted); text-align: center; line-height: 1.6;
+        }
+        .payment-box strong { color: var(--text-main); }
+        .payment-box i { color: var(--accent-cyan) !important; }
+
+        .page-footer { margin-top: 40px; border-top: 1px solid var(--glass-border); padding-top: 15px; font-size: 0.75rem; color: var(--text-muted); }
+        @media (prefers-reduced-motion: reduce) { *, *::before, *::after { transition: none !important; animation: none !important; } }
+    </style>
+</head>
+<body>
+
+    <div class="left-col">
+        <div class="left-content">
+            <a href="index.html" class="brand"><i class="fa-solid fa-microchip"></i> Arduino Hub</a>
+            
+            <div class="breadcrumbs">
+                <a href="shop.html" style="color:#38bdf8; text-decoration:none;">Cart</a> <span>&gt;</span>
+                <span class="active">Information</span> <span>&gt;</span>
+                <span>Shipping</span> <span>&gt;</span>
+                <span>Payment</span>
+            </div>
+
+            <form id="checkoutForm" onsubmit="submitOrder(event)">
+                <h2>Contact information</h2>
+                <div class="input-group">
+                    <input type="text" id="cEmail" class="form-control" placeholder="Email or mobile phone number" autocomplete="email" required>
+                </div>
+
+                <h2>Shipping address</h2>
+                <div class="input-group">
+                    <select id="cCountry" class="form-control">
+                        <option value="Egypt">Egypt</option>
+                    </select>
+                </div>
+                <div class="input-row">
+                    <div class="input-group">
+                        <input type="text" id="cFirstName" class="form-control" placeholder="First name (optional)">
+                    </div>
+                    <div class="input-group">
+                        <input type="text" id="cLastName" class="form-control" placeholder="Last name" required>
+                    </div>
+                </div>
+                <div class="input-group">
+                    <input type="text" id="cAddress" class="form-control" placeholder="Address" required>
+                </div>
+                <div class="input-group">
+                    <input type="text" id="cApartment" class="form-control" placeholder="Apartment, suite, etc. (optional)">
+                </div>
+                <div class="input-row">
+                    <div class="input-group">
+                        <input type="text" id="cCity" class="form-control" placeholder="City" required>
+                    </div>
+                    <div class="input-group">
+                        <input type="text" id="cGovernorate" class="form-control" placeholder="Governorate" required>
+                    </div>
+                </div>
+                <div class="input-group">
+                    <input type="tel" id="cPhone" class="form-control" placeholder="Phone" required>
+                </div>
+
+                <h2>Payment</h2>
+                <div class="payment-box">
+                    <i class="fa-solid fa-money-bill-wave" style="font-size: 1.5rem; margin-bottom:10px; color:#535353;"></i><br>
+                    <strong>Cash on Delivery (COD)</strong><br>
+                    Pay with cash upon delivery.
+                </div>
+
+                <div class="footer-actions">
+                    <a href="shop.html" class="return-link"><i class="fa-solid fa-chevron-left" style="font-size:0.7rem;"></i> Return to cart</a>
+                    <button type="submit" class="btn-primary" id="placeOrderBtn" style="width:auto;">Complete order</button>
+                </div>
+            </form>
+            
+            <div class="page-footer">
+                All rights reserved Arduino Hub
+            </div>
+        </div>
+    </div>
+
+    <div class="right-col">
+        <div class="right-content">
+            <div id="checkoutCartItems"></div>
+            
+            <div style="border-top: 1px solid var(--glass-border); margin-top: 20px; padding-top: 20px;">
+                <div class="summary-line">
+                    <span>Subtotal</span>
+                    <span id="cSubtotal" style="color:var(--text-main); font-weight:600;">EGP 0.00</span>
+                </div>
+                <div class="summary-line">
+                    <span>Shipping</span>
+                    <span style="color:var(--text-muted);">Calculated at next step</span>
+                </div>
+            </div>
+
+            <div class="summary-total">
+                <span>Total</span>
+                <div><span class="currency">EGP</span><span id="cTotal">0.00</span></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // ---------------- EmailJS Config ----------------
+        const PUBLIC_KEY = "DKphjbimsdInAHOZI";
+        const SERVICE_ID = "service_lcbu4jp"; 
+        const TEMPLATE_ID = "template_qgx7kfq"; // kept for backwards compatibility
+        // Two separate templates: set TEMPLATE_ID_ADMIN to your own "Admin Notification" template ID
+        // whenever you create one. Until then both fall back to the working receipt template.
+        const TEMPLATE_ID_RECEIPT = TEMPLATE_ID;
+        const TEMPLATE_ID_ADMIN = TEMPLATE_ID;
+        const ADMIN_EMAIL = "arduinohub1@gmail.com";
+        const EMAIL_TIMEOUT_MS = 15000;
+
+        try {
+            if (typeof emailjs !== "undefined") emailjs.init({ publicKey: PUBLIC_KEY });
+        } catch (initErr) {
+            console.error("EmailJS init failed:", initErr);
+        }
+
+        // Promise wrapper around emailjs.send: catches sync throws and never hangs the UI.
+        function sendEmailSafe(templateId, params) {
+            return new Promise(function(resolve, reject) {
+                if (typeof emailjs === "undefined") {
+                    reject(new Error("EmailJS SDK failed to load."));
+                    return;
+                }
+                const timer = setTimeout(function() { reject(new Error("Email request timed out.")); }, EMAIL_TIMEOUT_MS);
+                try {
+                    emailjs.send(SERVICE_ID, templateId, params, { publicKey: PUBLIC_KEY })
+                        .then(function(res) { clearTimeout(timer); resolve(res); })
+                        .catch(function(err) { clearTimeout(timer); reject(err); });
+                } catch (err) {
+                    clearTimeout(timer);
+                    reject(err);
+                }
+            });
+        }
+
+        function escapeHTML(str) {
+            return String(str == null ? "" : str)
+                .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
+                .replace(/"/g, "&quot;").replace(/'/g, "&#39;");
+        }
+
+        function errorText(err) {
+            if (!err) return "Unknown error";
+            return (err.status ? "[" + err.status + "] " : "") + (err.text || err.message || String(err));
+        }
+
+        function readJSON(key, fallback) {
+            try {
+                const v = JSON.parse(localStorage.getItem(key));
+                return v === null || v === undefined ? fallback : v;
+            } catch (e) {
+                return fallback;
+            }
+        }
+
+        // Guest checkout: no auth is required. A logged-in user just gets their details pre-filled.
+        document.addEventListener("DOMContentLoaded", () => {
+            const user = readJSON("arduino_hub_current_user", null);
+            if(user) {
+                document.getElementById("cEmail").value = user.email || "";
+                if(user.name) {
+                    const names = user.name.split(" ");
+                    document.getElementById("cFirstName").value = names[0];
+                    if(names.length > 1) document.getElementById("cLastName").value = names.slice(1).join(" ");
+                }
+            }
+            renderCheckoutCart();
+        });
+
+        function renderCheckoutCart() {
+            const cartItems = readJSON("arduino_hub_cart", []);
+            const container = document.getElementById("checkoutCartItems");
+            let total = 0;
+
+            if (cartItems.length === 0) {
+                container.innerHTML = "<p style='color:#94a3b8; font-size:0.9rem;'>Your cart is empty.</p>";
+                document.getElementById("placeOrderBtn").disabled = true;
+                return;
+            }
+
+            let html = "";
+            cartItems.forEach(item => {
+                total += item.price * item.qty;
+                html += `
+                    <div class="cart-item">
+                        <div class="item-img-wrapper">
+                            <img src="${escapeHTML(item.image)}" alt="">
+                            <div class="item-qty">${item.qty}</div>
+                        </div>
+                        <div class="item-info">${escapeHTML(item.title)}</div>
+                        <div class="item-price">EGP ${(item.price * item.qty).toFixed(2)}</div>
+                    </div>
+                `;
+            });
+            container.innerHTML = html;
+
+            document.getElementById("cSubtotal").innerText = "EGP " + total.toFixed(2);
+            document.getElementById("cTotal").innerText = total.toFixed(2);
+        }
+
+        function submitOrder(e) {
+            e.preventDefault();
+            
+            const cartItems = readJSON("arduino_hub_cart", []);
+            if(cartItems.length === 0) return alert("Your cart is empty!");
+
+            const btn = document.getElementById("placeOrderBtn");
+            if (btn.disabled) return; // prevent double submission
+            btn.disabled = true;
+            btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin" style="margin-right:8px;"></i> Processing Order...';
+
+            const user = readJSON("arduino_hub_current_user", null);
+            let totalAmount = cartItems.reduce((sum, i) => sum + (i.price * i.qty), 0);
+
+            const fullName = (document.getElementById("cFirstName").value + " " + document.getElementById("cLastName").value).trim();
+            // Skip empty parts (e.g. optional apartment) so the address has no ", ," gaps
+            const fullAddress = [
+                document.getElementById("cAddress").value,
+                document.getElementById("cApartment").value,
+                document.getElementById("cCity").value,
+                document.getElementById("cGovernorate").value
+            ].map(s => s.trim()).filter(Boolean).join(", ");
+            const customerEmail = document.getElementById("cEmail").value;
+            const customerPhone = document.getElementById("cPhone").value;
+
+            const pendingOrderData = {
+                userId: user ? (user.uid || user.email) : "Guest",
+                customerName: fullName,
+                customerEmail: customerEmail,
+                customerPhone: customerPhone,
+                shippingAddress: fullAddress,
+                items: cartItems,
+                totalAmount: totalAmount,
+                status: "Pending",
+                createdAt: firebase.firestore.FieldValue.serverTimestamp()
+            };
+
+            const finishOrder = (message) => {
+                alert(message);
+                localStorage.setItem("arduino_hub_cart", JSON.stringify([]));
+                window.location.href = "index.html";
+            };
+
+            let db;
+            try {
+                db = firebase.firestore();
+            } catch (dbErr) {
+                alert("Database Error: " + (dbErr.message || dbErr));
+                btn.disabled = false;
+                btn.innerHTML = "Complete order";
+                return;
+            }
+
+            db.collection("orders").add(pendingOrderData).then((docRef) => {
+                
+                // Construct Order Details String
+                let itemListText = cartItems.map(i => `${i.qty}x ${i.title} (EGP ${(i.price * i.qty).toFixed(2)})`).join('\n');
+                let orderMsg = `Thank you for your order! Your Order ID is #${docRef.id.substring(0,8).toUpperCase()}.\n\n`;
+                orderMsg += `Total Amount: EGP ${totalAmount.toFixed(2)}\n`;
+                orderMsg += `Shipping Address: ${pendingOrderData.shippingAddress}\n\n`;
+                orderMsg += `Items:\n${itemListText}`;
+
+                // Customer receipt params
+                const confirmationParams = {
+                    to_name: pendingOrderData.customerName,
+                    to_email: pendingOrderData.customerEmail,
+                    user_name: pendingOrderData.customerName,
+                    user_email: pendingOrderData.customerEmail,
+                    email: pendingOrderData.customerEmail,
+                    subject: "Order Confirmed - Arduino Hub",
+                    message: orderMsg
+                };
+
+                // Admin notification params
+                const adminParams = {
+                    to_name: "Admin",
+                    to_email: ADMIN_EMAIL,
+                    user_name: pendingOrderData.customerName,
+                    user_email: pendingOrderData.customerEmail,
+                    email: ADMIN_EMAIL,
+                    subject: `New Order Received - EGP ${totalAmount.toFixed(2)}`,
+                    message: `You have a new order!\n\nCustomer Details:\nName: ${pendingOrderData.customerName}\nEmail: ${pendingOrderData.customerEmail}\nPhone: ${pendingOrderData.customerPhone}\nAddress: ${pendingOrderData.shippingAddress}\n\nOrder Details:\n${orderMsg}`
+                };
+
+                // Send both emails and WAIT for them before redirecting. The admin mail is delayed ~1.2s
+                // inside the same Promise.all because EmailJS throttles to ~1 request/second (HTTP 429
+                // on simultaneous sends). The order is already saved, so an email failure never blocks checkout.
+                const sendReceipt = sendEmailSafe(TEMPLATE_ID_RECEIPT, confirmationParams)
+                    .then(() => ({ ok: true }))
+                    .catch((err) => ({ ok: false, label: "Customer receipt", err: err }));
+                const sendAdmin = new Promise((resolve) => setTimeout(resolve, 1200))
+                    .then(() => sendEmailSafe(TEMPLATE_ID_ADMIN, adminParams))
+                    .then(() => ({ ok: true }))
+                    .catch((err) => ({ ok: false, label: "Admin notification", err: err }));
+
+                return Promise.all([sendReceipt, sendAdmin]).then((results) => {
+                    const failed = results.filter(r => !r.ok);
+                    if (failed.length === 0) {
+                        finishOrder("Order Placed Successfully! Check your email for the receipt.");
+                    } else {
+                        failed.forEach(f => console.error("EmailJS Error (" + f.label + "):", f.err));
+                        const reasons = failed.map(f => f.label + ": " + errorText(f.err)).join("\n");
+                        finishOrder("Order Placed Successfully! Your order is saved, but some emails could not be sent:\n\n" + reasons);
+                    }
+                });
+
+            }).catch(err => {
+                alert("Database Error: " + (err.message || err));
+                btn.disabled = false;
+                btn.innerHTML = "Complete order";
+            });
+        }
+    </script>
+</body>
+</html>

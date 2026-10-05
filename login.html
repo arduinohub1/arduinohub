@@ -1,0 +1,937 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Arduino Hub | Account Access & Verification</title>
+
+    <!-- Google Fonts & Font Awesome Icons -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+    <!-- Firebase Compat SDKs -->
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js"></script>
+    <script type="text/javascript" src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"></script>
+
+    <!-- Firebase Configuration -->
+    <script src="firebase-config.js"></script>
+
+    <style>
+        :root {
+            --bg-dark: #070a12;
+            --glass-bg: rgba(18, 25, 41, 0.62);
+            --glass-border: rgba(255, 255, 255, 0.12);
+            --glass-border-strong: rgba(255, 255, 255, 0.22);
+            --glass-glow: rgba(56, 189, 248, 0.28);
+            --accent-blue: #2563eb;
+            --accent-cyan: #38bdf8;
+            --text-main: #f8fafc;
+            --text-muted: #94a3b8;
+            --danger-red: #ef4444;
+            --success-green: #10b981;
+            --input-bg: rgba(6, 9, 17, 0.72);
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+        }
+
+        body {
+            background-color: var(--bg-dark);
+            color: var(--text-main);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+            position: relative;
+            overflow-x: hidden;
+            background-image: 
+                radial-gradient(circle at 20% 20%, rgba(37, 99, 235, 0.2) 0%, transparent 45%),
+                radial-gradient(circle at 80% 80%, rgba(56, 189, 248, 0.15) 0%, transparent 45%);
+            background-attachment: fixed;
+        }
+
+        /* Ambient floating orbs behind the glass card */
+        body::before, body::after {
+            content: "";
+            position: fixed;
+            width: 380px;
+            height: 380px;
+            border-radius: 50%;
+            filter: blur(90px);
+            opacity: 0.35;
+            z-index: 0;
+            pointer-events: none;
+            animation: orbFloat 14s ease-in-out infinite alternate;
+        }
+        body::before { top: -120px; left: -100px; background: var(--accent-blue); }
+        body::after  { bottom: -140px; right: -100px; background: var(--accent-cyan); animation-delay: -7s; }
+
+        @keyframes orbFloat {
+            from { transform: translate(0, 0) scale(1); }
+            to   { transform: translate(40px, 30px) scale(1.12); }
+        }
+
+        .auth-container {
+            width: 100%;
+            max-width: 440px;
+            background: linear-gradient(160deg, rgba(255, 255, 255, 0.07) 0%, rgba(255, 255, 255, 0.015) 40%), var(--glass-bg);
+            border: 1px solid var(--glass-border);
+            border-radius: 28px;
+            padding: 38px 32px 34px;
+            backdrop-filter: blur(28px) saturate(150%);
+            -webkit-backdrop-filter: blur(28px) saturate(150%);
+            box-shadow:
+                0 30px 70px rgba(0, 0, 0, 0.6),
+                0 0 0 1px rgba(255, 255, 255, 0.03),
+                inset 0 1px 0 rgba(255, 255, 255, 0.14),
+                inset 0 -1px 0 rgba(0, 0, 0, 0.35);
+            position: relative;
+            z-index: 1;
+            animation: cardIn 0.6s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+        }
+
+        /* Soft top-edge highlight */
+        .auth-container::before {
+            content: "";
+            position: absolute;
+            top: 0; left: 12%; right: 12%;
+            height: 1px;
+            background: linear-gradient(90deg, transparent, rgba(56, 189, 248, 0.7), transparent);
+            pointer-events: none;
+        }
+
+        @keyframes cardIn {
+            from { opacity: 0; transform: translateY(18px) scale(0.98); }
+            to   { opacity: 1; transform: translateY(0) scale(1); }
+        }
+
+        .back-btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            color: var(--text-muted);
+            text-decoration: none;
+            font-size: 0.88rem;
+            font-weight: 500;
+            margin-bottom: 24px;
+            transition: all 0.25s ease;
+        }
+
+        .back-btn:hover {
+            color: var(--accent-cyan);
+            transform: translateX(-3px);
+        }
+
+        .auth-header {
+            text-align: center;
+            margin-bottom: 26px;
+        }
+
+        .brand-logo {
+            font-size: 1.7rem;
+            font-weight: 900;
+            color: var(--text-main);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            margin-bottom: 8px;
+            letter-spacing: -0.5px;
+            text-decoration: none;
+        }
+
+        .brand-logo i {
+            color: var(--accent-cyan);
+            filter: drop-shadow(0 0 10px var(--accent-cyan));
+        }
+
+        .auth-subtitle {
+            color: var(--text-muted);
+            font-size: 0.9rem;
+            line-height: 1.4;
+        }
+
+        .tab-switcher {
+            display: flex;
+            background: rgba(6, 9, 17, 0.6);
+            border: 1px solid var(--glass-border);
+            padding: 4px;
+            border-radius: 99px;
+            margin-bottom: 26px;
+            box-shadow: inset 0 2px 6px rgba(0, 0, 0, 0.35);
+        }
+
+        .tab-btn {
+            flex: 1;
+            background: none;
+            border: 1px solid transparent;
+            color: var(--text-muted);
+            padding: 10px;
+            font-size: 0.88rem;
+            font-weight: 600;
+            cursor: pointer;
+            border-radius: 99px;
+            transition: all 0.3s ease;
+        }
+
+        .tab-btn:hover:not(.active) { color: var(--text-main); }
+
+        .tab-btn.active {
+            background: linear-gradient(135deg, rgba(255, 255, 255, 0.18), rgba(255, 255, 255, 0.06));
+            color: #ffffff;
+            border: 1px solid rgba(255, 255, 255, 0.22);
+            box-shadow: 0 4px 14px rgba(0, 0, 0, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.15);
+        }
+
+        /* Smooth UI swap between Sign In / Sign Up / OTP (no page reload) */
+        .auth-form { display: none; }
+        .auth-form.active { display: block; animation: formSwap 0.38s cubic-bezier(0.2, 0.8, 0.2, 1) both; }
+        @keyframes formSwap {
+            from { opacity: 0; transform: translateY(10px); }
+            to   { opacity: 1; transform: translateY(0); }
+        }
+
+        .form-group { margin-bottom: 18px; }
+        .form-group label { display: block; font-size: 0.8rem; color: var(--text-muted); margin-bottom: 7px; font-weight: 600; letter-spacing: 0.2px; }
+        .input-wrapper { position: relative; }
+        .input-wrapper input {
+            width: 100%;
+            background: var(--input-bg);
+            border: 1px solid var(--glass-border);
+            padding: 13px 16px;
+            border-radius: 14px;
+            color: white;
+            font-size: 0.93rem;
+            outline: none;
+            transition: all 0.25s ease;
+            box-shadow: inset 0 2px 6px rgba(0, 0, 0, 0.3);
+        }
+        .input-wrapper input::placeholder { color: rgba(148, 163, 184, 0.55); }
+        .input-wrapper input:hover { border-color: var(--glass-border-strong); }
+        .input-wrapper input:focus {
+            border-color: var(--accent-cyan);
+            background: rgba(6, 9, 17, 0.9);
+            box-shadow: 0 0 0 4px rgba(56, 189, 248, 0.12), 0 0 18px var(--glass-glow);
+        }
+        /* Password inputs leave room for the eye icon */
+        .input-wrapper input[type="password"], .input-wrapper input#signInPass, .input-wrapper input#signUpPass { padding-right: 44px; }
+
+        /* Keep browser autofill from turning inputs white */
+        .input-wrapper input:-webkit-autofill,
+        .input-wrapper input:-webkit-autofill:focus {
+            -webkit-text-fill-color: #ffffff;
+            -webkit-box-shadow: 0 0 0 1000px #0b1120 inset;
+            caret-color: #ffffff;
+            transition: background-color 9999s ease-in-out 0s;
+        }
+
+        .toggle-password {
+            position: absolute;
+            right: 8px;
+            top: 50%;
+            transform: translateY(-50%);
+            width: 34px;
+            height: 34px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 50%;
+            color: var(--text-muted);
+            cursor: pointer;
+            font-size: 0.9rem;
+            transition: all 0.2s ease;
+        }
+        .toggle-password:hover { color: var(--accent-cyan); background: rgba(255, 255, 255, 0.06); }
+        
+        .btn-submit {
+            position: relative;
+            overflow: hidden;
+            width: 100%;
+            background: linear-gradient(135deg, var(--accent-blue) 0%, #1d4ed8 55%, #0ea5e9 130%);
+            color: white;
+            padding: 14px;
+            border: 1px solid rgba(255, 255, 255, 0.16);
+            border-radius: 14px;
+            font-size: 0.96rem;
+            font-weight: 700;
+            cursor: pointer;
+            margin-top: 12px;
+            transition: all 0.25s ease;
+            box-shadow: 0 8px 22px rgba(37, 99, 235, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.25);
+        }
+        /* Light sweep on hover */
+        .btn-submit::after {
+            content: "";
+            position: absolute;
+            top: 0; left: -80%;
+            width: 50%; height: 100%;
+            background: linear-gradient(120deg, transparent, rgba(255, 255, 255, 0.28), transparent);
+            transform: skewX(-20deg);
+            transition: left 0.6s ease;
+        }
+        .btn-submit:hover:not(:disabled)::after { left: 130%; }
+        .btn-submit:hover:not(:disabled) { transform: translateY(-2px); box-shadow: 0 12px 28px rgba(37, 99, 235, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.3); }
+        .btn-submit:active:not(:disabled) { transform: translateY(0); }
+        .btn-submit:disabled { opacity: 0.55; cursor: not-allowed; }
+        .btn-submit:focus-visible, .tab-btn:focus-visible { outline: 2px solid var(--accent-cyan); outline-offset: 3px; }
+
+        .guest-link-row { margin-top: 18px; font-size: 0.85rem; text-align: center; }
+        .guest-link-row a { color: var(--text-muted); text-decoration: underline; text-underline-offset: 3px; transition: color 0.2s ease; }
+        .guest-link-row a:hover { color: var(--accent-cyan); }
+
+        .message-banner { display: none; padding: 12px 14px; border-radius: 14px; font-size: 0.85rem; margin-bottom: 20px; text-align: center; font-weight: 500; line-height: 1.4; animation: formSwap 0.3s ease both; }
+        .message-banner.error { display: block; background: rgba(239, 68, 68, 0.14); border: 1px solid rgba(239, 68, 68, 0.4); color: #fca5a5; box-shadow: 0 0 18px rgba(239, 68, 68, 0.12); }
+        .message-banner.success { display: block; background: rgba(16, 185, 129, 0.14); border: 1px solid rgba(16, 185, 129, 0.4); color: #6ee7b7; box-shadow: 0 0 18px rgba(16, 185, 129, 0.12); }
+
+        .otp-intro { font-size: 0.9rem; color: var(--text-muted); text-align: center; line-height: 1.5; }
+        .otp-box-wrapper { display: flex; justify-content: center; gap: 14px; margin: 24px 0 14px; }
+        .otp-field {
+            width: 58px; height: 66px;
+            text-align: center;
+            font-size: 1.6rem; font-weight: 800;
+            border-radius: 16px;
+            background: var(--input-bg);
+            border: 1px solid var(--glass-border);
+            color: var(--accent-cyan);
+            outline: none;
+            caret-color: var(--accent-cyan);
+            transition: all 0.2s ease;
+            box-shadow: inset 0 2px 6px rgba(0, 0, 0, 0.3);
+        }
+        .otp-field:hover { border-color: var(--glass-border-strong); }
+        .otp-field:focus {
+            border-color: var(--accent-cyan);
+            background: rgba(6, 9, 17, 0.92);
+            transform: translateY(-2px);
+            box-shadow: 0 0 0 4px rgba(56, 189, 248, 0.12), 0 8px 20px var(--glass-glow);
+        }
+        .otp-field.filled { border-color: rgba(56, 189, 248, 0.55); background: rgba(56, 189, 248, 0.08); }
+        .otp-box-wrapper.shake { animation: otpShake 0.4s ease; }
+        @keyframes otpShake {
+            0%, 100% { transform: translateX(0); }
+            20% { transform: translateX(-8px); }
+            40% { transform: translateX(8px); }
+            60% { transform: translateX(-5px); }
+            80% { transform: translateX(5px); }
+        }
+
+        .resend-timer { text-align: center; font-size: 0.83rem; color: var(--text-muted); margin-top: 18px; line-height: 1.6; }
+        .resend-timer span { color: var(--accent-cyan); font-weight: 700; cursor: pointer; transition: opacity 0.2s ease; }
+        .resend-timer span:hover { opacity: 0.8; }
+        .resend-timer .cancel-link { display: inline-block; margin-top: 8px; color: var(--text-muted); text-decoration: underline; text-underline-offset: 3px; font-weight: 400; }
+        .resend-timer .cancel-link:hover { color: var(--text-main); opacity: 1; }
+
+        @media (max-width: 480px) {
+            .auth-container { padding: 30px 20px 26px; border-radius: 24px; }
+            .otp-box-wrapper { gap: 10px; }
+            .otp-field { width: 52px; height: 60px; font-size: 1.4rem; }
+        }
+        @media (prefers-reduced-motion: reduce) {
+            *, *::before, *::after { animation: none !important; transition: none !important; }
+        }
+    </style>
+</head>
+<body>
+
+    <div class="auth-container">
+        <a href="index.html" class="back-btn">
+            <i class="fa-solid fa-arrow-left"></i> Back to Store
+        </a>
+
+        <div class="auth-header">
+            <a href="index.html" class="brand-logo">
+                <i class="fa-solid fa-microchip"></i>
+                <span>Arduino Hub</span>
+            </a>
+            <p class="auth-subtitle" id="formHeaderSubtitle">Sign in or create an account to start shopping</p>
+        </div>
+
+        <div class="tab-switcher" id="authTabs">
+            <button class="tab-btn active" id="tabSignInBtn" onclick="switchAuthTab('login')">Sign In</button>
+            <button class="tab-btn" id="tabSignUpBtn" onclick="switchAuthTab('signup')">Create Account</button>
+        </div>
+
+        <div class="message-banner" id="messageBanner"></div>
+
+        <!-- SIGN IN FORM -->
+        <form id="signInForm" class="auth-form active" onsubmit="handleSignIn(event)">
+            <div class="form-group">
+                <label>Email, Username, or Phone</label>
+                <div class="input-wrapper">
+                    <input type="text" id="signInEmail" required placeholder="Email, username, or phone number">
+                </div>
+            </div>
+            <div class="form-group">
+                <label>Password</label>
+                <div class="input-wrapper">
+                    <input type="password" id="signInPass" required placeholder="••••••••">
+                    <i class="fa-regular fa-eye toggle-password" onclick="togglePassVisibility('signInPass', this)"></i>
+                </div>
+            </div>
+            <button type="submit" class="btn-submit">Sign In</button>
+            <p class="guest-link-row"><a href="checkout.html">Continue as Guest</a></p>
+        </form>
+
+        <!-- CREATE ACCOUNT FORM -->
+        <form id="signUpForm" class="auth-form" onsubmit="handleStartSignUp(event)">
+            <div class="form-group">
+                <label>Full Name</label>
+                <div class="input-wrapper">
+                    <input type="text" id="signUpName" required placeholder="e.g. John Doe">
+                </div>
+            </div>
+            <div class="form-group">
+                <label>Email Address</label>
+                <div class="input-wrapper">
+                    <input type="email" id="signUpEmail" required placeholder="user@example.com">
+                </div>
+            </div>
+            <div class="form-group">
+                <label>Phone Number</label>
+                <div class="input-wrapper">
+                    <input type="tel" id="signUpPhone" required placeholder="e.g. 01157992296">
+                </div>
+            </div>
+            <div class="form-group">
+                <label>Password</label>
+                <div class="input-wrapper">
+                    <input type="password" id="signUpPass" minlength="6" required placeholder="••••••••">
+                    <i class="fa-regular fa-eye toggle-password" onclick="togglePassVisibility('signUpPass', this)"></i>
+                </div>
+            </div>
+            <button type="submit" class="btn-submit">Send Verification Code</button>
+        </form>
+
+        <!-- OTP VERIFICATION FORM -->
+        <form id="otpForm" class="auth-form" onsubmit="handleVerifyOTP(event)" autocomplete="off">
+            <p class="otp-intro">
+                We sent a 4-digit code to <br><b id="otpRecipient" style="color: var(--accent-cyan); display:inline-block; margin-top:4px;"></b>
+            </p>
+
+            <div class="otp-box-wrapper" id="otpBoxWrapper">
+                <input type="text" inputmode="numeric" pattern="[0-9]*" autocomplete="one-time-code" maxlength="1" class="otp-field" id="otp1" required oninput="focusNextOtp(this, 'otp2', null)">
+                <input type="text" inputmode="numeric" pattern="[0-9]*" autocomplete="off" maxlength="1" class="otp-field" id="otp2" required oninput="focusNextOtp(this, 'otp3', 'otp1')">
+                <input type="text" inputmode="numeric" pattern="[0-9]*" autocomplete="off" maxlength="1" class="otp-field" id="otp3" required oninput="focusNextOtp(this, 'otp4', 'otp2')">
+                <input type="text" inputmode="numeric" pattern="[0-9]*" autocomplete="off" maxlength="1" class="otp-field" id="otp4" required oninput="focusNextOtp(this, null, 'otp3')">
+            </div>
+
+            <button type="submit" class="btn-submit" id="verifyBtn">Verify & Activate Account</button>
+
+            <div class="resend-timer">
+                Didn't receive code? <span id="resendBtn" onclick="resendCode()">Resend</span>
+                <br><span class="cancel-link" onclick="cancelOTP()">Cancel & Go Back</span>
+            </div>
+        </form>
+    </div>
+
+    
+    <script>
+        // ---------------- EmailJS Config ----------------
+        const PUBLIC_KEY = "DKphjbimsdInAHOZI";
+        const SERVICE_ID = "service_lcbu4jp";
+        const TEMPLATE_ID_OTP = "template_qgx7kfq"; // Generic template for OTP
+        const TEMPLATE_ID_WELCOME = "template_qgx7kfq"; 
+        const FALLBACK_TEMPLATE_ID = "template_qgx7kfq";
+
+        const EMAIL_TIMEOUT_MS = 15000;   // never leave the UI spinning forever
+        const OTP_LIFETIME_MS = 10 * 60 * 1000;
+        const RESEND_COOLDOWN_SEC = 30;
+
+        try {
+            if (typeof emailjs !== "undefined") emailjs.init({ publicKey: PUBLIC_KEY });
+        } catch (initErr) {
+            console.error("EmailJS init failed:", initErr);
+        }
+
+        let generatedOTP = "";
+        let otpExpiresAt = 0;
+        let pendingUserData = null;
+        let resendTimerInterval = null;
+        let resendBusy = false;
+
+        function resolveTemplate(id) {
+            return (!id || id.indexOf("YOUR_") === 0) ? FALLBACK_TEMPLATE_ID : id;
+        }
+
+        // Promise wrapper around emailjs.send: catches sync throws, SDK-missing and hanging requests,
+        // so the calling code always gets a settled promise and can restore the UI.
+        function sendEmailSafe(templateId, params) {
+            return new Promise(function(resolve, reject) {
+                if (typeof emailjs === "undefined") {
+                    reject(new Error("EmailJS SDK failed to load. Check your internet connection."));
+                    return;
+                }
+                const timer = setTimeout(function() {
+                    reject(new Error("Email request timed out."));
+                }, EMAIL_TIMEOUT_MS);
+
+                try {
+                    emailjs.send(SERVICE_ID, resolveTemplate(templateId), params, { publicKey: PUBLIC_KEY })
+                        .then(function(res) { clearTimeout(timer); resolve(res); })
+                        .catch(function(err) { clearTimeout(timer); reject(err); });
+                } catch (err) {
+                    clearTimeout(timer);
+                    reject(err);
+                }
+            });
+        }
+
+        function generateOTP() {
+            // 4 digits, 1000-9999 (cryptographically random when available)
+            if (window.crypto && window.crypto.getRandomValues) {
+                const buf = new Uint32Array(1);
+                window.crypto.getRandomValues(buf);
+                return String(1000 + (buf[0] % 9000));
+            }
+            return String(Math.floor(1000 + Math.random() * 9000));
+        }
+
+        function buildOtpParams(name, email, isResend) {
+            // Calculate expiry time string for the {{time}} variable in the EmailJS template
+            var expiryDate = new Date(Date.now() + OTP_LIFETIME_MS);
+            var hours = expiryDate.getHours();
+            var minutes = expiryDate.getMinutes();
+            var ampm = hours >= 12 ? 'PM' : 'AM';
+            hours = hours % 12 || 12;
+            var timeStr = hours + ':' + (minutes < 10 ? '0' : '') + minutes + ' ' + ampm;
+
+            return {
+                to_name: name,
+                to_email: email,
+                user_name: name,
+                user_email: email,
+                email: email,
+                reply_to: email,
+                subject: isResend ? "New Verification Code - Arduino Hub" : "Verify Your Arduino Hub Account",
+                otp: generatedOTP,
+                otp_code: generatedOTP,
+                passcode: generatedOTP,
+                time: timeStr,
+                message: (isResend ? "Your new" : "Welcome to Arduino Hub! Your") + " 4-digit verification code is: " + generatedOTP + ". It expires in 10 minutes."
+            };
+        }
+
+        function errorText(err) {
+            if (!err) return "Unknown error";
+            return (err.status ? "[" + err.status + "] " : "") + (err.text || err.message || String(err));
+        }
+
+        // ---------------- UI helpers ----------------
+        function switchAuthTab(type) {
+            hideBanner();
+            document.querySelectorAll(".tab-btn").forEach(function(b) { b.classList.remove("active"); });
+            document.querySelectorAll(".auth-form").forEach(function(f) { f.classList.remove("active"); });
+            document.getElementById("authTabs").style.display = "flex";
+
+            if (type === 'login') {
+                document.getElementById("tabSignInBtn").classList.add("active");
+                document.getElementById("signInForm").classList.add("active");
+                document.getElementById("formHeaderSubtitle").innerText = "Sign in or create an account to start shopping";
+            } else {
+                document.getElementById("tabSignUpBtn").classList.add("active");
+                document.getElementById("signUpForm").classList.add("active");
+                document.getElementById("formHeaderSubtitle").innerText = "Create an account to join Arduino Hub";
+            }
+        }
+
+        function togglePassVisibility(inputId, icon) {
+            const input = document.getElementById(inputId);
+            if (input.type === "password") {
+                input.type = "text";
+                icon.classList.replace("fa-eye", "fa-eye-slash");
+            } else {
+                input.type = "password";
+                icon.classList.replace("fa-eye-slash", "fa-eye");
+            }
+        }
+
+        function showMessage(msg, type) {
+            const banner = document.getElementById("messageBanner");
+            banner.innerText = msg;
+            banner.style.display = ""; // FIX: clear the inline display:none left by hideBanner(), otherwise the banner never reappears
+            banner.className = "message-banner " + (type || "error");
+        }
+
+        function hideBanner() {
+            const banner = document.getElementById("messageBanner");
+            banner.className = "message-banner";
+            banner.style.display = "";
+        }
+
+        function resetSignUpButton() {
+            const btn = document.querySelector('#signUpForm button[type="submit"]');
+            if (btn) {
+                btn.disabled = false;
+                btn.innerHTML = "Send Verification Code";
+            }
+        }
+
+        // ---------------- Sign In ----------------
+        function handleSignIn(e) {
+            e.preventDefault();
+            hideBanner();
+
+            const loginId = document.getElementById("signInEmail").value.trim();
+            const loginIdLower = loginId.toLowerCase();
+            const pass = document.getElementById("signInPass").value;
+            const btn = e.target.querySelector('button[type="submit"]');
+
+            // --- ADMIN BYPASS LOGIC ---
+            if ((loginIdLower === 'admin2989' && pass === '78810') || (loginIdLower === "admin@arduinohub.com" && pass === "123456")) {
+                localStorage.setItem('arduino_hub_current_user', JSON.stringify({ email: 'admin@arduinohub.com', name: 'Admin', uid: 'ADMIN123' }));
+                showMessage("Admin verified! Redirecting...", "success");
+                setTimeout(function() { window.location.href = 'admin.html'; }, 800);
+                return;
+            }
+            // --------------------------
+
+            btn.disabled = true;
+            btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Signing In...';
+
+            let db;
+            try {
+                db = firebase.firestore();
+            } catch (dbErr) {
+                showMessage("Database Error: " + errorText(dbErr), "error");
+                btn.disabled = false;
+                btn.innerHTML = "Sign In";
+                return;
+            }
+
+            // Try to find the user by email, name, or phone
+            // Firestore doesn't support OR queries across fields, so we run up to 3 queries
+            const usersRef = db.collection("users");
+            const queries = [
+                usersRef.where("email", "==", loginIdLower).get(),
+                usersRef.where("name", "==", loginId).get(),
+                usersRef.where("phone", "==", loginId).get()
+            ];
+
+            Promise.all(queries.map(function(q) { return q.catch(function() { return { empty: true, docs: [] }; }); }))
+                .then(function(results) {
+                    // Merge all results and find any document that matches the password
+                    let foundUser = null;
+                    let foundDocId = null;
+                    for (let i = 0; i < results.length; i++) {
+                        if (!results[i].empty) {
+                            results[i].docs.forEach(function(doc) {
+                                const data = doc.data();
+                                if (data.password === pass) {
+                                    foundUser = data;
+                                    foundDocId = doc.id;
+                                }
+                            });
+                        }
+                    }
+
+                    if (foundUser) {
+                        localStorage.setItem('arduino_hub_current_user', JSON.stringify({ email: foundUser.email, name: foundUser.name || 'User', uid: foundDocId }));
+                        showMessage("Signed in successfully! Redirecting...", "success");
+                        setTimeout(function() { window.location.href = "index.html"; }, 800);
+                    } else {
+                        showMessage("Incorrect credentials. Check your email/username/phone and password.", "error");
+                        btn.disabled = false;
+                        btn.innerHTML = "Sign In";
+                    }
+                })
+                .catch(function(err) {
+                    showMessage("Database Error: " + errorText(err), "error");
+                    btn.disabled = false;
+                    btn.innerHTML = "Sign In";
+                });
+        }
+
+        // ---------------- Register -> OTP ----------------
+        function showOtpStep(email) {
+            // Pure UI swap (no reload): hide tabs + other forms, reveal the OTP form
+            document.querySelectorAll(".auth-form").forEach(function(f) { f.classList.remove("active"); });
+            document.getElementById("authTabs").style.display = "none";
+            document.getElementById("otpForm").classList.add("active");
+
+            document.getElementById("otpRecipient").innerText = email;
+            document.getElementById("formHeaderSubtitle").innerText = "Enter the 4-digit code sent to your email";
+
+            clearOtpFields();
+            const verifyBtn = document.getElementById("verifyBtn");
+            verifyBtn.disabled = false;
+            verifyBtn.innerHTML = "Verify & Activate Account";
+
+            // Focus the first box once the swap animation has started
+            setTimeout(function() { document.getElementById("otp1").focus(); }, 60);
+            startResendCooldown(RESEND_COOLDOWN_SEC);
+        }
+
+        function handleStartSignUp(e) {
+            e.preventDefault();
+            hideBanner();
+
+            const name = document.getElementById("signUpName").value.trim();
+            const email = document.getElementById("signUpEmail").value.trim().toLowerCase();
+            let phone = document.getElementById("signUpPhone").value.trim();
+            const pass = document.getElementById("signUpPass").value;
+            const btn = e.target.querySelector('button[type="submit"]');
+
+            if (!/^[0-9+\s-]{7,16}$/.test(phone)) {
+                showMessage("Please enter a valid phone number.", "error");
+                return;
+            }
+
+            btn.disabled = true;
+            btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Sending Code...';
+
+            let db;
+            try {
+                db = firebase.firestore();
+            } catch (dbErr) {
+                showMessage("Database Error: " + errorText(dbErr), "error");
+                resetSignUpButton();
+                return;
+            }
+
+            // Check if user already exists
+            db.collection("users").where("email", "==", email).get().then(function(snapshot) {
+                if (!snapshot.empty) {
+                    showMessage("Email is already registered! Please sign in.", "error");
+                    resetSignUpButton();
+                    return;
+                }
+
+                pendingUserData = { name: name, email: email, phone: phone, password: pass, createdAt: firebase.firestore.FieldValue.serverTimestamp() };
+                generatedOTP = generateOTP();
+                otpExpiresAt = Date.now() + OTP_LIFETIME_MS;
+
+                return sendEmailSafe(TEMPLATE_ID_OTP, buildOtpParams(name, email, false))
+                    .then(function() {
+                        showOtpStep(email);
+                        showMessage("Verification code sent to your email!", "success");
+                        resetSignUpButton();
+                    })
+                    .catch(function(error) {
+                        console.error("EmailJS Error:", error);
+                        generatedOTP = "";
+                        showMessage("Failed to send code: " + errorText(error), "error");
+                        resetSignUpButton();
+                    });
+
+            }).catch(function(err) {
+                showMessage("Database Error: " + errorText(err), "error");
+                resetSignUpButton();
+            });
+        }
+
+        // ---------------- OTP inputs (auto-focus) ----------------
+        function clearOtpFields() {
+            document.querySelectorAll('.otp-field').forEach(function(input) {
+                input.value = '';
+                input.classList.remove('filled');
+            });
+        }
+
+        // Called on every input event: keeps digits only, then jumps to the next box
+        function focusNextOtp(current, nextFieldID, prevFieldID) {
+            current.value = current.value.replace(/\D/g, '').slice(0, 1);
+            current.classList.toggle('filled', current.value.length === 1);
+
+            if (current.value.length === 1) {
+                if (nextFieldID) {
+                    const next = document.getElementById(nextFieldID);
+                    next.focus();
+                    next.select();
+                } else {
+                    // Last digit entered: move to the verify button so Enter submits
+                    const btn = document.getElementById("verifyBtn");
+                    if (btn) btn.focus();
+                }
+            }
+        }
+
+        (function setupOtpInputs() {
+            const ids = ["otp1", "otp2", "otp3", "otp4"];
+            const fields = ids.map(function(id) { return document.getElementById(id); });
+
+            fields.forEach(function(field, index) {
+                // Select existing content on focus so typing replaces it
+                field.addEventListener("focus", function() { field.select(); });
+                field.addEventListener("click", function() { field.select(); });
+
+                field.addEventListener("keydown", function(ev) {
+                    if (ev.key === "Backspace") {
+                        if (field.value === "" && index > 0) {
+                            ev.preventDefault();
+                            const prev = fields[index - 1];
+                            prev.value = "";
+                            prev.classList.remove("filled");
+                            prev.focus();
+                        } else {
+                            field.classList.remove("filled");
+                        }
+                    } else if (ev.key === "ArrowLeft" && index > 0) {
+                        ev.preventDefault();
+                        fields[index - 1].focus();
+                    } else if (ev.key === "ArrowRight" && index < fields.length - 1) {
+                        ev.preventDefault();
+                        fields[index + 1].focus();
+                    } else if (ev.key.length === 1 && !ev.ctrlKey && !ev.metaKey && !/\d/.test(ev.key)) {
+                        ev.preventDefault(); // block letters/symbols
+                    }
+                });
+
+                // Paste a full code into any box
+                field.addEventListener("paste", function(ev) {
+                    const text = (ev.clipboardData || window.clipboardData).getData("text") || "";
+                    const digits = text.replace(/\D/g, "").slice(0, fields.length);
+                    if (!digits) { ev.preventDefault(); return; }
+                    ev.preventDefault();
+                    fields.forEach(function(f, i) {
+                        f.value = digits[i] || "";
+                        f.classList.toggle("filled", !!digits[i]);
+                    });
+                    if (digits.length >= fields.length) {
+                        document.getElementById("verifyBtn").focus();
+                    } else {
+                        fields[digits.length].focus();
+                    }
+                });
+            });
+        })();
+
+        function cancelOTP() {
+            hideBanner();
+            switchAuthTab('signup');
+            generatedOTP = "";
+            otpExpiresAt = 0;
+            pendingUserData = null;
+            stopResendCooldown();
+            clearOtpFields();
+            resetSignUpButton();
+        }
+
+        function handleVerifyOTP(e) {
+            e.preventDefault();
+            hideBanner();
+
+            const userEnteredOTP = 
+                document.getElementById("otp1").value +
+                document.getElementById("otp2").value +
+                document.getElementById("otp3").value +
+                document.getElementById("otp4").value;
+
+            if (!pendingUserData || !generatedOTP) {
+                showMessage("Session expired. Please request a new code.", "error");
+                return;
+            }
+
+            if (Date.now() > otpExpiresAt) {
+                showMessage("This code has expired. Please click Resend to get a new one.", "error");
+                return;
+            }
+
+            if (userEnteredOTP !== generatedOTP) {
+                showMessage("Invalid verification code. Please check and try again.", "error");
+                const wrapper = document.getElementById("otpBoxWrapper");
+                wrapper.classList.remove("shake");
+                void wrapper.offsetWidth; // restart animation
+                wrapper.classList.add("shake");
+                return;
+            }
+
+            const btn = e.target.querySelector('button[type="submit"]');
+            btn.disabled = true;
+            btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Activating Account...';
+
+            let db;
+            try {
+                db = firebase.firestore();
+            } catch (dbErr) {
+                showMessage("Error creating account: " + errorText(dbErr), "error");
+                btn.disabled = false;
+                btn.innerHTML = "Verify & Activate Account";
+                return;
+            }
+
+            db.collection("users").add(pendingUserData).then(function(docRef) {
+                
+                // Send Welcome Email (fire-and-forget: a failure here must never block the signup)
+                sendEmailSafe(TEMPLATE_ID_WELCOME, {
+                    to_name: pendingUserData.name,
+                    to_email: pendingUserData.email,
+                    email: pendingUserData.email,
+                    subject: "Welcome to Arduino Hub!",
+                    message: "Your account has been successfully created. Enjoy shopping the best electronics and hardware components."
+                }).catch(function(mailErr) {
+                    console.warn("Welcome email failed (account was still created):", mailErr);
+                });
+
+                showMessage("Account verified & created successfully!", "success");
+                localStorage.setItem("arduino_hub_current_user", JSON.stringify({ email: pendingUserData.email, name: pendingUserData.name, uid: docRef.id }));
+                stopResendCooldown();
+                
+                setTimeout(function() { window.location.href = "index.html"; }, 1000);
+
+            }).catch(function(err) {
+                showMessage("Error creating account: " + errorText(err), "error");
+                btn.disabled = false;
+                btn.innerHTML = "Verify & Activate Account";
+            });
+        }
+
+        // ---------------- Resend ----------------
+        function stopResendCooldown() {
+            if (resendTimerInterval) clearInterval(resendTimerInterval);
+            resendTimerInterval = null;
+            const el = document.getElementById("resendBtn");
+            if (el) {
+                el.innerText = "Resend";
+                el.style.pointerEvents = "";
+                el.style.opacity = "";
+            }
+        }
+
+        function startResendCooldown(seconds) {
+            stopResendCooldown();
+            const el = document.getElementById("resendBtn");
+            let left = seconds;
+            el.style.pointerEvents = "none";
+            el.style.opacity = "0.5";
+            el.innerText = "Resend (" + left + "s)";
+            resendTimerInterval = setInterval(function() {
+                left--;
+                if (left <= 0) {
+                    stopResendCooldown();
+                } else {
+                    el.innerText = "Resend (" + left + "s)";
+                }
+            }, 1000);
+        }
+
+        function resendCode() {
+            if (!pendingUserData || resendBusy) return;
+            resendBusy = true;
+            showMessage("Sending new code...", "success");
+            
+            generatedOTP = generateOTP();
+            otpExpiresAt = Date.now() + OTP_LIFETIME_MS;
+
+            sendEmailSafe(TEMPLATE_ID_OTP, buildOtpParams(pendingUserData.name, pendingUserData.email, true))
+                .then(function() {
+                    showMessage("New 4-digit code sent to your email!", "success");
+                    clearOtpFields();
+                    document.getElementById("otp1").focus();
+                    startResendCooldown(RESEND_COOLDOWN_SEC);
+                })
+                .catch(function(error) {
+                    console.error("EmailJS Error:", error);
+                    showMessage("Error resending email: " + errorText(error), "error");
+                })
+                .then(function() { resendBusy = false; });
+        }
+    </script>
+</body>
+</html>

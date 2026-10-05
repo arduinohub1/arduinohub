@@ -1,0 +1,511 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Dashboard | Arduino Hub</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        body { background: #070a13; color: white; font-family: 'Inter', sans-serif; margin: 0; }
+        header { padding: 20px 5%; background: rgba(15,23,42,0.9); display:flex; justify-content:space-between; align-items:center; border-bottom: 1px solid rgba(255,255,255,0.1); position: sticky; top: 0; z-index: 100; backdrop-filter: blur(10px); }
+        .admin-container { padding: 40px 5%; max-width: 1350px; margin: 0 auto; }
+        
+        .admin-tabs { display: flex; gap: 15px; margin-bottom: 30px; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 15px; overflow-x: auto;}
+        .admin-tab { background: none; border: none; color: #94a3b8; font-size: 1.1rem; font-weight: 600; cursor: pointer; padding: 10px 20px; border-radius: 8px; transition: 0.3s; white-space: nowrap;}
+        .admin-tab.active { background: rgba(56, 189, 248, 0.1); color: #38bdf8; }
+
+        .tab-content { display: none; }
+        .tab-content.active { display: block; }
+
+        .table-responsive { width: 100%; overflow-x: auto; -webkit-overflow-scrolling: touch; border-radius: 12px; }
+        table { width: 100%; border-collapse: collapse; margin-top: 20px; background: #0f172a; min-width: 800px; }
+        th, td { padding: 16px; text-align: left; border-bottom: 1px solid rgba(255,255,255,0.05); }
+        th { background: #1e293b; color: #38bdf8; font-weight: 600; }
+        td img { width: 50px; height: 50px; object-fit: contain; background: rgba(0,0,0,0.3); border-radius: 6px; padding: 4px; }
+        
+        .action-btn { border:none; color:white; padding: 8px 14px; border-radius: 6px; cursor: pointer; margin-right:6px; font-weight: 600; transition: 0.2s; display: inline-flex; align-items:center; gap: 6px;}
+        .action-btn.edit { background: #2563eb; }
+        .action-btn.edit:hover { background: #1d4ed8; }
+        .action-btn.delete { background: rgba(239, 68, 68, 0.2); color: #fca5a5; }
+        .action-btn.delete:hover { background: #ef4444; color: white; }
+
+        .modal { position: fixed; inset: 0; background: rgba(0,0,0,0.8); display: none; align-items: center; justify-content: center; z-index: 2000; padding: 20px; backdrop-filter: blur(5px);}
+        .modal.open { display: flex; }
+        .modal-content { background: #0d1322; padding: 30px; border-radius: 20px; width: 100%; max-width: 500px; border: 1px solid rgba(255,255,255,0.1); max-height: 90vh; overflow-y: auto; box-shadow: 0 20px 40px rgba(0,0,0,0.6);}
+        .modal-content label { display: block; font-size: 0.85rem; color: #94a3b8; margin-bottom: 6px; margin-top: 14px;}
+        .modal-content input[type="text"], .modal-content input[type="number"], .modal-content input[type="url"], .modal-content select { width: 100%; background: #080c14; border: 1px solid rgba(255,255,255,0.1); padding: 12px; border-radius: 8px; color: white; outline: none; box-sizing: border-box; }
+        .modal-content input:focus, .modal-content select:focus { border-color: #38bdf8; }
+        
+        .upload-area { border: 2px dashed rgba(255,255,255,0.2); padding: 20px; text-align: center; border-radius: 12px; cursor: pointer; margin-top: 8px; transition: 0.3s; }
+        .upload-area:hover { border-color: #38bdf8; background: rgba(56, 189, 248, 0.05); }
+
+        .promo-editor-card { background: #0f172a; border: 1px solid rgba(255,255,255,0.1); padding: 24px; border-radius: 12px; margin-bottom: 20px;}
+        .promo-editor-card h4 { margin-top:0; color: #38bdf8; font-size: 1.2rem;}
+        .promo-input-group { margin-bottom: 12px; }
+        .promo-input-group label { display: block; font-size: 0.85rem; color: #94a3b8; margin-bottom: 6px;}
+        .promo-input-group input { width: 100%; background: #080c14; border: 1px solid rgba(255,255,255,0.1); padding: 10px; border-radius: 8px; color: white; box-sizing: border-box;}
+    </style>
+
+    <!-- Firebase Compat SDKs -->
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js"></script>
+    <script src="firebase-config.js"></script>
+</head>
+<body>
+    <header>
+        <h2 style="margin:0;"><i class="fa-solid fa-microchip" style="color:#38bdf8;"></i> ArduinoHub <span style="font-weight:300;">| Admin</span></h2>
+        <div style="display:flex; align-items:center; gap: 15px;">
+            <a href="shop.html" style="color:#94a3b8; text-decoration:none; font-weight:500;"><i class="fa-solid fa-store"></i> Store</a>
+            <button onclick="logoutAdmin()" style="background:#ef4444; color:white; border:none; padding:8px 20px; border-radius:8px; cursor:pointer; font-weight:bold;">Logout</button>
+        </div>
+    </header>
+
+    <div class="admin-container">
+        
+        <div class="admin-tabs">
+            <button class="admin-tab active" onclick="switchAdminTab('products', this)"><i class="fa-solid fa-box"></i> Manage Products</button>
+            <button class="admin-tab" onclick="switchAdminTab('orders', this)"><i class="fa-solid fa-cart-flatbed"></i> Customer Orders</button>
+            <button class="admin-tab" onclick="switchAdminTab('promos', this)"><i class="fa-solid fa-rectangle-ad"></i> Manage Promos (Ads)</button>
+        </div>
+
+        <!-- PRODUCTS TAB -->
+        <div id="tab-products" class="tab-content active">
+            <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap: wrap; gap: 15px;">
+                <h3 style="font-size: 1.5rem; margin:0;">Store Catalog</h3>
+                <button onclick="openModal()" style="background:#10b981; color:white; border:none; padding:12px 24px; border-radius:8px; cursor:pointer; font-weight:bold; font-size: 1rem; transition: 0.2s;">
+                    <i class="fa-solid fa-plus"></i> Add New Product
+                </button>
+            </div>
+            
+            <div class="table-responsive">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Image</th>
+                            <th>Title & Category</th>
+                            <th>Price / Offer</th>
+                            <th>Best Seller?</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="adminTableBody"></tbody>
+                </table>
+            </div>
+        </div>
+
+        
+        <!-- ORDERS TAB -->
+        <div id="tab-orders" class="tab-content">
+            <h3 style="font-size: 1.5rem; margin-top:0;">Customer Orders</h3>
+            <p style="color:#94a3b8; margin-bottom: 20px;">Manage and track all purchases made by customers.</p>
+            
+            <div class="table-responsive">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Order ID & Date</th>
+                            <th>Customer Details</th>
+                            <th>Items</th>
+                            <th>Total</th>
+                            <th>Status</th>
+                            <th>Action</th>
+                        </tr>
+                    </thead>
+                    <tbody id="adminOrdersTableBody"></tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- PROMOS TAB -->
+        <div id="tab-promos" class="tab-content">
+            <h3 style="font-size: 1.5rem; margin-top:0;">Homepage Advertisements</h3>
+            <p style="color:#94a3b8; margin-bottom: 20px;">Edit the two main promotional banners displayed on the home page.</p>
+
+            <div class="promo-editor-card">
+                <h4>Promo Block 1 (Left)</h4>
+                <div class="promo-input-group"><label>Tag (e.g. Summer Sale)</label><input type="text" id="promo1Tag"></div>
+                <div class="promo-input-group"><label>Main Title (e.g. Up to 30% Off)</label><input type="text" id="promo1Title"></div>
+                <div class="promo-input-group"><label>Description</label><input type="text" id="promo1Desc"></div>
+                <div class="promo-input-group"><label>Button Text</label><input type="text" id="promo1Btn"></div>
+            </div>
+
+            <div class="promo-editor-card">
+                <h4>Promo Block 2 (Right)</h4>
+                <div class="promo-input-group"><label>Tag (e.g. New Arrivals)</label><input type="text" id="promo2Tag"></div>
+                <div class="promo-input-group"><label>Main Title (e.g. Just Landed)</label><input type="text" id="promo2Title"></div>
+                <div class="promo-input-group"><label>Description</label><input type="text" id="promo2Desc"></div>
+                <div class="promo-input-group"><label>Button Text</label><input type="text" id="promo2Btn"></div>
+            </div>
+
+            <button onclick="savePromos()" style="background:#2563eb; color:white; border:none; padding:14px 30px; border-radius:8px; cursor:pointer; font-weight:bold; font-size: 1rem; width: 100%;">Save Promo Changes</button>
+        </div>
+
+    </div>
+
+    <!-- Add/Edit Product Modal -->
+    <div class="modal" id="productModal">
+        <div class="modal-content">
+            <h3 id="modalTitle" style="margin-top:0; color:#38bdf8; font-size: 1.4rem;">Add Product</h3>
+            <input type="hidden" id="pid">
+            
+            <label>Product Title</label>
+            <input type="text" id="ptitle" placeholder="e.g. Arduino Mega 2560">
+            
+            <label>Category</label>
+            <select id="pcategory">
+                <option value="Microcontrollers">Microcontrollers</option>
+                <option value="Sensors">Sensors</option>
+                <option value="Wires & Modules">Wires & Accessories</option>
+            </select>
+            
+            <div style="display: flex; gap: 15px;">
+                <div style="flex: 1;">
+                    <label>Regular Price ($)</label>
+                    <input type="number" step="0.01" id="pprice" placeholder="e.g. 15.99">
+                </div>
+                <div style="flex: 1;">
+                    <label>Offer Price ($) <span style="color:#ef4444; font-size:0.7rem;">Optional</span></label>
+                    <input type="number" step="0.01" id="poffer" placeholder="e.g. 12.99">
+                </div>
+            </div>
+
+            <label style="display:flex; align-items:center; gap:8px; margin-top:20px; cursor:pointer; font-size:0.95rem; color:white; background:rgba(255,255,255,0.05); padding:12px; border-radius:8px; border:1px solid rgba(255,255,255,0.1);">
+                <input type="checkbox" id="pBestSeller" style="width:18px; height:18px; cursor:pointer; accent-color:#38bdf8;">
+                <i class="fa-solid fa-star" style="color:#f59e0b;"></i> Mark as Featured / Best Seller (Shows on Home Page)
+            </label>
+            
+            <label style="margin-top:20px;">Product Image</label>
+            <div class="upload-area" onclick="document.getElementById('pimageFile').click()">
+                <i class="fa-solid fa-cloud-arrow-up" style="font-size: 2rem; color: #38bdf8; margin-bottom: 10px;"></i>
+                <p style="margin:0; font-size: 0.9rem; color: #94a3b8;">Click to upload image from your device</p>
+                <input type="file" id="pimageFile" accept="image/*" onchange="handleImage(event)" style="display:none;">
+            </div>
+            <input type="hidden" id="pimageBase64">
+            
+            <div style="text-align: center; margin-top: 15px;">
+                <img id="imgPreview" src="" style="width:120px; height:120px; object-fit:contain; display:none; border-radius:8px; background:rgba(0,0,0,0.3); padding:10px; border: 1px solid rgba(255,255,255,0.1); margin: 0 auto;">
+            </div>
+            
+            <div style="display:flex; gap:12px; margin-top: 25px;">
+                <button type="button" onclick="saveProduct(event)" style="flex:1; background:#2563eb; color:white; border:none; padding:14px; border-radius:8px; cursor:pointer; font-weight:bold; font-size: 1rem;">Save Product</button>
+                <button onclick="closeModal()" style="flex:1; background:rgba(255,255,255,0.1); color:white; border:none; padding:14px; border-radius:8px; cursor:pointer; font-weight:bold; font-size: 1rem;">Cancel</button>
+            </div>
+        </div>
+    </div>
+
+    
+    <script>
+        let products = [];
+
+        // Security Check
+        const user = JSON.parse(localStorage.getItem("arduino_hub_current_user"));
+        if(!user || user.email !== "admin@arduinohub.com") {
+            window.location.href = "login.html";
+        }
+
+        
+        let orders = [];
+
+        // --- REAL TIME DB LISTENER (PRODUCTS & ORDERS) ---
+        document.addEventListener("DOMContentLoaded", () => {
+            if (typeof firebase !== 'undefined' && firebase.apps.length > 0) {
+                const db = firebase.firestore();
+                
+                // Products
+                db.collection("products").onSnapshot(snapshot => {
+                    products = [];
+                    snapshot.forEach(doc => products.push({ id: doc.id, ...doc.data() }));
+                    renderAdminTable();
+                }, error => {
+                    console.error("Admin Firestore Error:", error);
+                });
+
+                // Orders
+                db.collection("orders").orderBy("createdAt", "desc").onSnapshot(snapshot => {
+                    orders = [];
+                    snapshot.forEach(doc => orders.push({ id: doc.id, ...doc.data() }));
+                    renderOrdersTable();
+                });
+            }
+            loadPromosIntoForm();
+        });
+
+        function renderOrdersTable() {
+            const tbody = document.getElementById("adminOrdersTableBody");
+            if (!tbody) return;
+            tbody.innerHTML = "";
+            
+            if(orders.length === 0) {
+                tbody.innerHTML = "<tr><td colspan='6' style='text-align:center; color:#94a3b8;'>No orders found.</td></tr>";
+                return;
+            }
+
+            orders.forEach(o => {
+                const dateObj = o.createdAt ? o.createdAt.toDate() : new Date();
+                const dateStr = dateObj.toLocaleDateString() + " " + dateObj.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+                
+                let itemsList = o.items.map(i => `<div>${i.qty}x ${i.title}</div>`).join('');
+                
+                let statusColor = o.status === 'Pending' ? '#f59e0b' : (o.status === 'Shipped' ? '#38bdf8' : '#10b981');
+
+                const tr = document.createElement("tr");
+                tr.innerHTML = `
+                    <td>
+                        <div style="font-family:monospace; color:#94a3b8; font-size:0.85rem;">#${o.id.substring(0,8).toUpperCase()}</div>
+                        <div style="font-size:0.85rem; margin-top:4px;">${dateStr}</div>
+                    </td>
+                    <td>
+                        <div style="font-weight:600;">${o.customerName}</div>
+                        <div style="font-size:0.85rem; color:#94a3b8;">${o.customerEmail}</div>
+                    </td>
+                    <td style="font-size:0.85rem; color:#cbd5e1;">${itemsList}</td>
+                    <td style="font-weight:bold; color:var(--accent-cyan);">$${parseFloat(o.totalAmount).toFixed(2)}</td>
+                    <td>
+                        <span style="background:rgba(255,255,255,0.05); border:1px solid ${statusColor}; color:${statusColor}; padding:4px 10px; border-radius:99px; font-size:0.8rem; font-weight:600;">${o.status}</span>
+                    </td>
+                    <td>
+                        <select onchange="updateOrderStatus('${o.id}', this.value)" style="background:#1e293b; color:white; border:1px solid rgba(255,255,255,0.1); padding:6px; border-radius:6px; outline:none; cursor:pointer;">
+                            <option value="Pending" ${o.status === 'Pending' ? 'selected' : ''}>Pending</option>
+                            <option value="Shipped" ${o.status === 'Shipped' ? 'selected' : ''}>Shipped</option>
+                            <option value="Delivered" ${o.status === 'Delivered' ? 'selected' : ''}>Delivered</option>
+                        </select>
+                    </td>
+                `;
+                tbody.appendChild(tr);
+            });
+        }
+
+        function updateOrderStatus(orderId, newStatus) {
+            firebase.firestore().collection("orders").doc(orderId).update({
+                status: newStatus
+            }).then(() => {
+                console.log("Order status updated to " + newStatus);
+            }).catch(err => {
+                alert("Failed to update status.");
+            });
+        }
+
+
+        function switchAdminTab(tabId, btn) {
+            document.querySelectorAll('.admin-tab').forEach(b => b.classList.remove('active'));
+            document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+            btn.classList.add('active');
+            document.getElementById('tab-' + tabId).classList.add('active');
+        }
+
+        // --- PRODUCT MANAGEMENT ---
+        function renderAdminTable() {
+            const tbody = document.getElementById("adminTableBody");
+            tbody.innerHTML = "";
+            products.forEach(p => {
+                const tr = document.createElement("tr");
+                tr.innerHTML = `
+                    <td><img src="${p.image}"></td>
+                    <td>
+                        <div style="font-weight: 600; font-size:1.05rem;">${p.title}</div>
+                        <div style="font-size:0.8rem; color:#94a3b8; margin-top:4px;"><i class="fa-solid fa-tag"></i> ${p.category}</div>
+                    </td>
+                    <td>
+                        <div><span style="color:#94a3b8;">Base:</span> $${parseFloat(p.price).toFixed(2)}</div>
+                        <div style="margin-top:4px;"><span style="color:#94a3b8;">Offer:</span> ${p.offerPrice && p.offerPrice !== "" ? '<span style="color:#10b981; font-weight:bold;">$'+parseFloat(p.offerPrice).toFixed(2)+'</span>' : 'None'}</div>
+                    </td>
+                    <td>${p.isBestSeller ? '<i class="fa-solid fa-star" style="color:#f59e0b; font-size:1.2rem;"></i> Yes' : '<span style="color:#64748b;">No</span>'}</td>
+                    <td>
+                        <button class="action-btn edit" onclick="editProduct('${p.id}')"><i class="fa-solid fa-pen"></i></button>
+                        <button class="action-btn delete" onclick="deleteProduct('${p.id}')"><i class="fa-solid fa-trash"></i></button>
+                    </td>
+                `;
+                tbody.appendChild(tr);
+            });
+        }
+
+        function openModal() {
+            document.getElementById("pid").value = "";
+            document.getElementById("ptitle").value = "";
+            document.getElementById("pprice").value = "";
+            document.getElementById("poffer").value = "";
+            document.getElementById("pimageFile").value = "";
+            document.getElementById("pimageBase64").value = "";
+            document.getElementById("pBestSeller").checked = false;
+            document.getElementById("imgPreview").style.display = "none";
+            document.getElementById("modalTitle").innerText = "Add New Product";
+            document.getElementById("productModal").classList.add("open");
+        }
+
+        function closeModal() { document.getElementById("productModal").classList.remove("open"); }
+
+        function handleImage(event) {
+            const file = event.target.files[0];
+            if(!file) return;
+            
+            document.querySelector(".upload-area p").innerText = "Processing Image...";
+            
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                const img = new Image();
+                img.onload = function() {
+                    // Auto-Compress the image to save space
+                    const canvas = document.createElement("canvas");
+                    const MAX_WIDTH = 500;
+                    const MAX_HEIGHT = 500;
+                    let width = img.width;
+                    let height = img.height;
+
+                    if (width > height && width > MAX_WIDTH) {
+                        height *= MAX_WIDTH / width;
+                        width = MAX_WIDTH;
+                    } else if (height > MAX_HEIGHT) {
+                        width *= MAX_HEIGHT / height;
+                        height = MAX_HEIGHT;
+                    }
+
+                    canvas.width = width;
+                    canvas.height = height;
+                    const ctx = canvas.getContext("2d");
+                    ctx.drawImage(img, 0, 0, width, height);
+                    
+                    // Convert to base64 with 70% quality JPEG
+                    const compressedBase64 = canvas.toDataURL("image/jpeg", 0.7);
+                    
+                    document.getElementById("pimageBase64").value = compressedBase64;
+                    const preview = document.getElementById("imgPreview");
+                    preview.src = compressedBase64;
+                    preview.style.display = "block";
+                    
+                    document.querySelector(".upload-area p").innerText = "Image Uploaded Successfully!";
+                };
+                img.src = e.target.result;
+            };
+            reader.readAsDataURL(file);
+        }
+
+        function editProduct(id) {
+            const p = products.find(x => x.id === id);
+            if(!p) return;
+            document.getElementById("pid").value = p.id;
+            document.getElementById("ptitle").value = p.title;
+            document.getElementById("pcategory").value = p.category;
+            document.getElementById("pprice").value = p.price;
+            document.getElementById("poffer").value = p.offerPrice || "";
+            document.getElementById("pBestSeller").checked = p.isBestSeller || false;
+            document.getElementById("pimageBase64").value = p.image;
+            
+            const preview = document.getElementById("imgPreview");
+            preview.src = p.image;
+            preview.style.display = "block";
+
+            document.getElementById("modalTitle").innerText = "Edit Product";
+            document.getElementById("productModal").classList.add("open");
+        }
+
+        function saveProduct(e) {
+            if(e) e.preventDefault();
+            const id = document.getElementById("pid").value;
+            const title = document.getElementById("ptitle").value.trim();
+            const category = document.getElementById("pcategory").value;
+            const price = document.getElementById("pprice").value;
+            const offer = document.getElementById("poffer").value;
+            const isBestSeller = document.getElementById("pBestSeller").checked;
+            let image = document.getElementById("pimageBase64").value;
+
+            // --- BUG FIX: Don't block saving if the user forgot the image! ---
+            if (!image || image === "") {
+                image = "https://via.placeholder.com/400x400.png?text=No+Image";
+            }
+
+            if(!title || !price) {
+                alert("Please enter the Product Title and Price!");
+                return;
+            }
+
+            const prodData = {
+                title: title, 
+                category: category, 
+                price: parseFloat(price), 
+                offerPrice: offer ? parseFloat(offer) : "",
+                isBestSeller: isBestSeller,
+                image: image,
+                rating: 5.0
+            };
+
+            const db = firebase.firestore();
+            if(id) {
+                // Edit existing in Firestore
+                db.collection("products").doc(id).update(prodData).then(() => {
+                    closeModal();
+                    alert("Product Updated Successfully!");
+                }).catch(error => {
+                    console.error("Firebase Update Error:", error);
+                    alert("Database Error: " + error.message);
+                });
+            } else {
+                // Add new to Firestore
+                db.collection("products").add(prodData).then(() => {
+                    closeModal();
+                    alert("Product Added Successfully!");
+                }).catch(error => {
+                    console.error("Firebase Add Error:", error);
+                    alert("Database Error: " + error.message);
+                });
+            }
+        }
+
+        function deleteProduct(id) {
+            if(confirm("Are you sure you want to delete this product?")) {
+                firebase.firestore().collection("products").doc(id).delete().then(() => {
+                    alert("Product Deleted!");
+                }).catch(error => {
+                    console.error("Firebase Delete Error:", error);
+                    alert("Database Error: " + error.message);
+                });
+            }
+        }
+
+        // --- PROMOS MANAGEMENT ---
+        const defaultPromos = [
+            {tag: "Summer Sale", title: "Up to 30% Off", desc: "On selected tech essentials and developer components.", btnText: "Shop the Sale"},
+            {tag: "New Arrivals", title: "Just Landed", desc: "Be the first to explore the latest hardware modules.", btnText: "Discover Now"}
+        ];
+        
+        let promos = JSON.parse(localStorage.getItem("arduino_hub_promos"));
+        if (!promos || promos.length !== 2) promos = defaultPromos;
+
+        function loadPromosIntoForm() {
+            document.getElementById("promo1Tag").value = promos[0].tag;
+            document.getElementById("promo1Title").value = promos[0].title;
+            document.getElementById("promo1Desc").value = promos[0].desc;
+            document.getElementById("promo1Btn").value = promos[0].btnText;
+
+            document.getElementById("promo2Tag").value = promos[1].tag;
+            document.getElementById("promo2Title").value = promos[1].title;
+            document.getElementById("promo2Desc").value = promos[1].desc;
+            document.getElementById("promo2Btn").value = promos[1].btnText;
+        }
+
+        function savePromos() {
+            promos[0] = {
+                tag: document.getElementById("promo1Tag").value,
+                title: document.getElementById("promo1Title").value,
+                desc: document.getElementById("promo1Desc").value,
+                btnText: document.getElementById("promo1Btn").value
+            };
+            promos[1] = {
+                tag: document.getElementById("promo2Tag").value,
+                title: document.getElementById("promo2Title").value,
+                desc: document.getElementById("promo2Desc").value,
+                btnText: document.getElementById("promo2Btn").value
+            };
+            localStorage.setItem("arduino_hub_promos", JSON.stringify(promos));
+            alert("Promotional banners updated successfully!");
+        }
+
+        function logoutAdmin() {
+            localStorage.removeItem("arduino_hub_current_user");
+            window.location.href = "login.html";
+        }
+    </script>
+
+</body>
+</html>
